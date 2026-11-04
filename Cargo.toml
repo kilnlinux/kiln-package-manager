@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Declarative package profiles for Kiln Linux, on top of pacman"
 license = "MIT"
-repository = "https://github.com/kilnlinux/kiln"
+repository = "https://github.com/kilnlinux/kiln-package-manager"
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
