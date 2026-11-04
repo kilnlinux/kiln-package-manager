@@ -10,6 +10,9 @@ jobs:
   package:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools

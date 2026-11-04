@@ -6,7 +6,8 @@ pkgdesc='Declarative package profiles for Kiln Linux, on top of pacman'
 arch=('x86_64')
 url='https://github.com/kilnlinux/kiln-package-manager'
 license=('MIT')
-depends=('pacman' 'glibc' 'gcc-libs')
+# Refuse updates on systems older than the libraries used to build this binary.
+depends=('pacman' "glibc>=$(pacman -Q glibc | cut -d' ' -f2)" "gcc-libs>=$(pacman -Q gcc-libs | cut -d' ' -f2)")
 makedepends=('rust')
 options=('!debug')
 # Keep makepkg's cleanbuild directory separate from Cargo's tracked src/.
