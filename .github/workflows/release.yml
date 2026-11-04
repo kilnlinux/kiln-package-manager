@@ -29,4 +29,4 @@ jobs:
         run: |
           . ./PKGBUILD
           test "$GITHUB_REF_NAME" = "v$pkgver"
-          gh release create "$GITHUB_REF_NAME" ./*.pkg.tar.zst --verify-tag --generate-notes
+          gh release create "$GITHUB_REF_NAME" ./*.pkg.tar.zst --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
