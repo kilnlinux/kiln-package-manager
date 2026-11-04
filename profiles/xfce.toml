@@ -1,0 +1,20 @@
+# XFCE: a light, traditional X11 desktop environment. Apply on top of core.
+# The installer enables the lightdm login screen (systemctl enable lightdm).
+[profile]
+name = "xfce"
+description = "XFCE desktop environment (X11) with the LightDM login screen"
+
+[packages]
+official = [
+    "xfce4-session",
+    "xfwm4",
+    "xfce4-panel",
+    "xfdesktop",
+    "xfce4-settings",
+    "xfce4-terminal",
+    "thunar",          # file manager
+    "xorg-server",
+    "lightdm",
+    "lightdm-gtk-greeter",
+    "ttf-dejavu",
+]

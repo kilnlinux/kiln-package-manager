@@ -1,0 +1,15 @@
+# GNOME: a full Wayland desktop environment, without GNOME's app collection.
+# Apply on top of core. The installer enables the GDM login screen (systemctl enable gdm).
+[profile]
+name = "gnome"
+description = "GNOME desktop environment (Wayland) with the GDM login screen"
+
+[packages]
+official = [
+    "gnome-shell",
+    "gdm",
+    "gnome-control-center",
+    "gnome-console",             # terminal
+    "nautilus",                  # file manager
+    "xdg-desktop-portal-gnome",
+]

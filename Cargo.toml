@@ -1,0 +1,16 @@
+[package]
+name = "kiln"
+version = "0.1.0"
+edition = "2024"
+description = "Declarative package profiles for Kiln Linux, on top of pacman"
+license = "MIT"
+repository = "https://github.com/kilnlinux/kiln"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.8"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

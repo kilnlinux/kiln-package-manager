@@ -1,0 +1,29 @@
+name: Test and package kiln
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: pacman -Syu --noconfirm --needed rust git github-cli
+      - name: Build and test as an unprivileged user
+        run: |
+          useradd -m builder
+          chown -R builder:builder .
+          runuser -u builder -- makepkg --noconfirm
+      - name: Publish tagged package
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . ./PKGBUILD
+          test "$GITHUB_REF_NAME" = "v$pkgver"
+          gh release create "$GITHUB_REF_NAME" ./*.pkg.tar.zst --verify-tag --generate-notes

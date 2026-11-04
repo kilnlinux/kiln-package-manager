@@ -1,0 +1,22 @@
+# i3 desktop: X11 tiling window manager. Apply on top of core.
+# Start it from a TTY with `startx` (the installer makes ~/.xinitrc run i3).
+[profile]
+name = "i3"
+description = "i3 X11 tiling desktop: i3status, i3lock, xterm, dmenu, dunst"
+
+[packages]
+official = [
+    "i3-wm",
+    "i3status",       # status bar text
+    "i3lock",         # screen locker (Super+Escape)
+    "maim",           # screenshots (Print, Shift+Print)
+    "xorg-server",
+    "xorg-xinit",     # startx
+    "xorg-xrdb",      # loads ~/.Xresources
+    "xorg-xsetroot",
+    "xorg-xrandr",
+    "xterm",
+    "dmenu",
+    "dunst",
+    "ttf-dejavu",
+]

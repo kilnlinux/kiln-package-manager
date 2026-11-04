@@ -1,0 +1,16 @@
+# KDE Plasma: a full Wayland desktop environment. Apply on top of core.
+# The installer enables the SDDM login screen (systemctl enable sddm).
+[profile]
+name = "plasma"
+description = "KDE Plasma desktop environment (Wayland) with the SDDM login screen"
+
+[packages]
+official = [
+    "plasma-desktop",
+    "sddm",
+    "konsole",        # terminal
+    "dolphin",        # file manager
+    "plasma-nm",      # network applet (NetworkManager)
+    "kscreen",        # display settings
+    "noto-fonts",
+]

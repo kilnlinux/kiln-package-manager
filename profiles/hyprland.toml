@@ -1,0 +1,20 @@
+# Hyprland desktop: Wayland tiling compositor (Kiln config: no animations, blur or rounding). Apply on top of core.
+# Start it from a TTY with `start-hyprland` (Hyprland's launcher). Shares foot, fuzzel and mako (and their configs) with sway.
+[profile]
+name = "hyprland"
+description = "Hyprland Wayland tiling desktop: waybar, foot, fuzzel, mako"
+
+[packages]
+official = [
+    "hyprland",
+    "xdg-desktop-portal-hyprland",  # screen sharing, file pickers
+    "waybar",         # bar
+    "foot",           # terminal (Super+Return)
+    "fuzzel",         # launcher (Super+d)
+    "mako",           # notifications
+    "swaylock",       # screen locker (Super+Escape)
+    "grim",           # screenshots (Print)
+    "slurp",          # region selection for Shift+Print
+    "polkit",
+    "ttf-dejavu",
+]

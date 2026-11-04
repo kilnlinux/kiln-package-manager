@@ -1,0 +1,12 @@
+# Optional audio stack. `sudo kiln apply audio`, then log out and back in.
+[profile]
+name = "audio"
+description = "PipeWire audio (PulseAudio and ALSA compatible)"
+
+[packages]
+official = [
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "wireplumber",
+]

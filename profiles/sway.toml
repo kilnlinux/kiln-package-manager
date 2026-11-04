@@ -1,0 +1,18 @@
+# Optional Wayland desktop: sway. Apply on top of core (instead of, or next to, twmx).
+# Start it from a TTY with `sway`.
+[profile]
+name = "sway"
+description = "Sway Wayland desktop: foot, fuzzel, mako"
+
+[packages]
+official = [
+    "sway",
+    "swaybg",       # sway draws backgrounds, even solid colors, through swaybg
+    "swaylock",     # Super+Escape locks the screen
+    "foot",         # terminal
+    "fuzzel",       # launcher
+    "mako",         # notifications
+    "grim",         # screenshots (Print)
+    "slurp",        # region selection for Shift+Print
+    "ttf-dejavu",   # a font for foot, fuzzel and the bar
+]

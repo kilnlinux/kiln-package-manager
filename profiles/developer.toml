@@ -1,0 +1,11 @@
+# Kiln Developer: build tools. Apply on top of core, with or without a desktop.
+[profile]
+name = "developer"
+description = "Git, compilers, make, debugger"
+
+[packages]
+official = [
+    "git",
+    "base-devel",   # gcc, make, binutils, pkgconf, autoconf... (also needed for makepkg)
+    "gdb",
+]

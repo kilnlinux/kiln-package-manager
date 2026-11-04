@@ -1,0 +1,14 @@
+# Kiln Core: a command-line system. pacstrap already installed `base`,
+# `linux` and firmware; this adds what a usable machine needs on top.
+[profile]
+name = "core"
+description = "Minimal command-line system"
+
+[packages]
+official = [
+    "networkmanager",  # wired + Wi-Fi (nmtui, nmcli)
+    "sudo",
+    "nano",
+    "less",
+    "man-db",
+]
