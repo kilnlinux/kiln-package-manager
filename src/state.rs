@@ -53,16 +53,27 @@ pub fn path() -> PathBuf {
 impl State {
     pub fn deactivate(&mut self, name: &str, other_wanted: &BTreeMap<String, Vec<String>>) {
         if let Some(removed) = self.profiles.remove(name) {
-            for (other, wanted) in other_wanted {
-                if let Some(profile) = self.profiles.get_mut(other) {
-                    profile.managed.extend(
-                        removed
-                            .managed
-                            .iter()
-                            .filter(|p| wanted.contains(p))
-                            .cloned(),
-                    );
-                }
+            let pkgs: Vec<String> = removed.managed.into_iter().collect();
+            self.release(name, &pkgs, other_wanted);
+        }
+    }
+
+    /// Stop recording `pkgs` for `name`; other active profiles that list one
+    /// take it over, so a later purge of theirs can still remove it.
+    pub fn release(
+        &mut self,
+        name: &str,
+        pkgs: &[String],
+        other_wanted: &BTreeMap<String, Vec<String>>,
+    ) {
+        if let Some(profile) = self.profiles.get_mut(name) {
+            profile.managed.retain(|p| !pkgs.contains(p));
+        }
+        for (other, wanted) in other_wanted.iter().filter(|(o, _)| *o != name) {
+            if let Some(profile) = self.profiles.get_mut(other) {
+                profile
+                    .managed
+                    .extend(pkgs.iter().filter(|p| wanted.contains(p)).cloned());
             }
         }
     }
@@ -133,6 +144,7 @@ mod tests {
         state.deactivate("b", &BTreeMap::from([("c".into(), vec!["shared".into()])]));
         let plan = crate::plan::remove_plan(
             "c",
+            &state.profiles["c"].managed,
             &state,
             &HashSet::new(),
             &HashSet::from(["shared".into(), "manual".into()]),

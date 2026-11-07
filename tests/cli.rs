@@ -345,3 +345,64 @@ fn purge_transfers_shared_packages_then_removes_them_when_root() {
         "-R --noconfirm -- parent\n-R --noconfirm -- shared\n"
     );
 }
+
+#[test]
+fn dropped_packages_show_in_plan_doctor_and_purge_plan() {
+    let e = Env::new("drift");
+    e.profile("a", &["x"]);
+    e.profile("b", &["shared"]);
+    // a's manifest used to list old, shared and gone too.
+    e.state("[profiles.a]\nmanaged=['x','old','shared','gone']\n[profiles.b]\nmanaged=[]\n");
+    let installed = "x old shared";
+
+    let o = e.kiln(&["plan", "a"], installed, "");
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert!(stdout(&o).contains("no longer lists them (3)"));
+
+    let o = e.kiln(&["apply", "a", "--purge", "--dry-run"], installed, "");
+    assert!(o.status.success(), "{}", stderr(&o));
+    let out = stdout(&o);
+    assert!(
+        out.contains("no longer listed; to uninstall (1):\n     old"),
+        "{out}"
+    );
+    assert!(
+        out.contains("another active profile needs them (1):\n     shared"),
+        "{out}"
+    );
+    assert!(out.contains("already uninstalled (1):\n     gone"), "{out}");
+    assert!(out.contains("dry run"));
+
+    let o = e.kiln(&["doctor"], installed, "");
+    assert!(stdout(&o).contains("no longer listed: gone old shared"));
+
+    let o = e.kiln(&["sync", "--purge", "--dry-run"], installed, "");
+    assert!(o.status.success(), "{}", stderr(&o));
+    let out = stdout(&o);
+    assert!(
+        out.contains("profile a") && out.contains("profile b"),
+        "{out}"
+    );
+}
+
+#[test]
+fn apply_purge_removes_dropped_and_transfers_shared_when_root() {
+    if !running_as_root() {
+        return;
+    }
+    let e = Env::new("drift-root");
+    e.profile("a", &["x"]);
+    e.profile("b", &["shared"]);
+    e.state("[profiles.a]\nmanaged=['x','old','shared','gone']\n[profiles.b]\nmanaged=[]\n");
+    let o = e.kiln(&["apply", "a", "--purge", "--yes"], "x old shared", "");
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(
+        std::fs::read_to_string(e.dir.join("transactions")).unwrap(),
+        "-R --noconfirm -- old\n"
+    );
+    let state: toml::Value =
+        toml::from_str(&std::fs::read_to_string(e.dir.join("state.toml")).unwrap()).unwrap();
+    let managed = |p: &str| state["profiles"][p]["managed"].as_array().unwrap().clone();
+    assert_eq!(managed("a"), [toml::Value::String("x".into())]);
+    assert_eq!(managed("b"), [toml::Value::String("shared".into())]);
+}

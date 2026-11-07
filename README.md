@@ -9,6 +9,7 @@ active profiles.
 kiln profile list
 kiln plan developer
 sudo kiln apply developer
+sudo kiln sync --purge
 sudo kiln remove developer --purge
 kiln doctor
 ```

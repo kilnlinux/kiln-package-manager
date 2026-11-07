@@ -3,7 +3,7 @@
 //! Module map:
 //!   cli       argument parsing          manifest  TOML profiles and lookup
 //!   pacman    all calls to pacman       plan      pure planning rules
-//!   apply     apply / remove            state     /var/lib/kiln/state.toml
+//!   apply     apply / sync / remove           state     /var/lib/kiln/state.toml
 //!   commands  the read-only commands    ui, error output and errors
 
 mod apply;
@@ -30,12 +30,18 @@ fn run(cmd: Cmd) -> error::Result<()> {
         Cmd::ProfileList => commands::profile_list(),
         Cmd::ProfileShow(p) => commands::profile_show(&p),
         Cmd::ProfileCreate(n) => commands::profile_create(&n),
-        Cmd::Plan(p) => apply::apply(&p, true, false),
+        Cmd::Plan(p) => apply::apply(&p, false, true, false),
         Cmd::Apply {
             profile,
+            purge,
             dry_run,
             yes,
-        } => apply::apply(&profile, dry_run, yes),
+        } => apply::apply(&profile, purge, dry_run, yes),
+        Cmd::Sync {
+            purge,
+            dry_run,
+            yes,
+        } => apply::sync(purge, dry_run, yes),
         Cmd::Remove {
             profile,
             purge,

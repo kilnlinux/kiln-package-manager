@@ -15,6 +15,12 @@ pub enum Cmd {
     Plan(String),
     Apply {
         profile: String,
+        purge: bool,
+        dry_run: bool,
+        yes: bool,
+    },
+    Sync {
+        purge: bool,
         dry_run: bool,
         yes: bool,
     },
@@ -47,6 +53,7 @@ Commands:
   profile create <name>     New empty profile in ~/.config/kiln/profiles
   plan <profile>            What `apply` would change; changes nothing
   apply <profile>           Install what the profile is missing, mark it active
+  sync                      apply every active profile again
   remove <profile>          Mark a profile inactive (keeps its packages)
   doctor                    Check pacman, dependencies and profiles
   export <name> [pkg...]    Write a profile from the given packages, or from
@@ -55,10 +62,12 @@ Commands:
   help                      This text
 
 Options:
-  -n, --dry-run   apply, remove: show the plan only
-  -y, --yes       apply, remove: don't ask for confirmation (pacman --noconfirm)
+  -n, --dry-run   apply, sync, remove: show the plan only
+  -y, --yes       apply, sync, remove: don't ask for confirmation (pacman --noconfirm)
       --purge     remove: also uninstall packages kiln installed for this
                   profile that no other active profile needs
+                  apply, sync: also uninstall packages kiln installed that
+                  the profile no longer lists and no other profile needs
 
 <profile> is a name (searched in ~/.config/kiln/profiles, /etc/kiln/profiles,
 /usr/share/kiln/profiles) or a path to a .toml file.
@@ -118,8 +127,7 @@ pub fn parse(args: &[String]) -> Result<Cmd> {
 
     // Reject flags on commands that don't take them, instead of ignoring them.
     let flags_ok = match cmd {
-        "apply" => !a.purge,
-        "remove" => true,
+        "apply" | "remove" | "sync" => true,
         _ => !(a.dry_run || a.yes || a.purge),
     };
     if !flags_ok {
@@ -143,6 +151,12 @@ pub fn parse(args: &[String]) -> Result<Cmd> {
         "plan" => Ok(Cmd::Plan(one(cmd, &a.pos)?)),
         "apply" => Ok(Cmd::Apply {
             profile: one(cmd, &a.pos)?,
+            purge: a.purge,
+            dry_run: a.dry_run,
+            yes: a.yes,
+        }),
+        "sync" => none(Cmd::Sync {
+            purge: a.purge,
             dry_run: a.dry_run,
             yes: a.yes,
         }),
@@ -194,6 +208,7 @@ mod tests {
             p("apply dev -n").unwrap(),
             Cmd::Apply {
                 profile: "dev".into(),
+                purge: false,
                 dry_run: true,
                 yes: false
             }
@@ -205,6 +220,14 @@ mod tests {
                 purge: true,
                 dry_run: false,
                 yes: true
+            }
+        );
+        assert_eq!(
+            p("sync --purge -n").unwrap(),
+            Cmd::Sync {
+                purge: true,
+                dry_run: true,
+                yes: false
             }
         );
         assert_eq!(
@@ -226,7 +249,7 @@ mod tests {
             "bogus",
             "apply",
             "apply a b",
-            "apply a --purge",
+            "sync a",
             "list --yes",
             "plan a --bogus",
             "profile",

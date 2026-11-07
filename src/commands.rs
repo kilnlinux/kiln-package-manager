@@ -218,19 +218,36 @@ pub fn doctor() -> Result<()> {
     for (name, ps) in &state.profiles {
         match ps.load_manifest(name) {
             Err(e) => report(Some(false), &format!("active profile {name}: {e}")),
-            Ok(m) => match pacman::unsatisfied(&m.packages.official) {
-                Ok(miss) if miss.is_empty() => {
-                    report(Some(true), &format!("active profile {name} is satisfied"))
+            Ok(m) => {
+                let dropped: Vec<&str> = ps
+                    .managed
+                    .iter()
+                    .filter(|p| !m.packages.official.contains(p))
+                    .map(String::as_str)
+                    .collect();
+                if !dropped.is_empty() {
+                    report(
+                        None,
+                        &format!(
+                            "profile {name}: kiln-managed but no longer listed: {} (run `sudo kiln apply {name} --purge`)",
+                            dropped.join(" ")
+                        ),
+                    );
                 }
-                Ok(miss) => report(
-                    None,
-                    &format!(
-                        "active profile {name} is missing: {} (run `sudo kiln apply {name}`)",
-                        miss.join(" ")
+                match pacman::unsatisfied(&m.packages.official) {
+                    Ok(miss) if miss.is_empty() => {
+                        report(Some(true), &format!("active profile {name} is satisfied"))
+                    }
+                    Ok(miss) => report(
+                        None,
+                        &format!(
+                            "active profile {name} is missing: {} (run `sudo kiln apply {name}`)",
+                            miss.join(" ")
+                        ),
                     ),
-                ),
-                Err(e) => report(Some(false), &e.to_string()),
-            },
+                    Err(e) => report(Some(false), &e.to_string()),
+                }
+            }
         }
         let gone: Vec<&str> = ps
             .managed
