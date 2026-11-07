@@ -1,4 +1,4 @@
-//! `kiln apply` and `kiln remove`: the two commands that change the system.
+//! `kiln apply`, `kiln sync` and `kiln remove`: the commands that change the system.
 //!
 //! Order matters for safety: plan from pacman's live view, let pacman run its
 //! own transaction (with its own lock and confirmation), and only record
@@ -13,7 +13,7 @@ use crate::state::State;
 use crate::{pacman, ui};
 use std::collections::{BTreeMap, HashSet};
 
-pub fn apply(arg: &str, dry_run: bool, yes: bool) -> Result<()> {
+pub fn apply(arg: &str, purge: bool, dry_run: bool, yes: bool) -> Result<()> {
     let path = manifest::resolve(arg)?;
     let path = std::fs::canonicalize(&path).map_err(crate::error::io_err("resolving", &path))?;
     let m = Manifest::load(&path)?;
@@ -30,6 +30,24 @@ pub fn apply(arg: &str, dry_run: bool, yes: bool) -> Result<()> {
     let p = plan::apply_plan(wanted, &unsatisfied, &available);
     let initial_state = State::load()?;
     let active = initial_state.profiles.get(name);
+    // Recorded for this profile, but no longer in its manifest.
+    let dropped: Vec<String> = active
+        .map(|a| {
+            a.managed
+                .iter()
+                .filter(|p| !wanted.contains(p))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let prune = if purge && !dropped.is_empty() {
+        let (other_wanted, other_profiles) = others(&initial_state, name)?;
+        let installed = pacman::installed()?;
+        let r = plan::remove_plan(name, &dropped, &initial_state, &other_wanted, &installed);
+        Some((r, other_profiles))
+    } else {
+        None
+    };
 
     ui::heading(&format!(
         "profile {} ({})",
@@ -49,13 +67,47 @@ pub fn apply(arg: &str, dry_run: bool, yes: bool) -> Result<()> {
             p.unknown.len()
         );
     }
-    if p.install.is_empty() {
+    match &prune {
+        Some((r, _)) => {
+            if !r.shared.is_empty() {
+                println!(
+                    "   no longer listed; kept, another active profile needs them ({}):",
+                    r.shared.len()
+                );
+                ui::list(&r.shared);
+            }
+            if !r.gone.is_empty() {
+                println!(
+                    "   no longer listed; already uninstalled ({}):",
+                    r.gone.len()
+                );
+                ui::list(&r.gone);
+            }
+            if !r.remove.is_empty() {
+                println!("   no longer listed; to uninstall ({}):", r.remove.len());
+                ui::list(&r.remove);
+            }
+        }
+        None if !dropped.is_empty() => {
+            println!(
+                "   kiln installed these, but the profile no longer lists them ({}):",
+                dropped.len()
+            );
+            ui::list(&dropped);
+            println!(
+                "{}",
+                ui::dim("   (use --purge to uninstall the ones no other profile needs)")
+            );
+        }
+        None => {}
+    }
+    if p.install.is_empty() && prune.is_none() {
         if active.is_some_and(|p| p.manifest.as_ref() == Some(&path) || !pacman::is_root()) {
             println!("{}", ui::good("   satisfied, nothing to do"));
             return Ok(());
         }
         println!("   satisfied; will mark the profile active");
-    } else {
+    } else if !p.install.is_empty() {
         println!("   to install ({}):", p.install.len());
         ui::list(&p.install);
     }
@@ -86,6 +138,18 @@ pub fn apply(arg: &str, dry_run: bool, yes: bool) -> Result<()> {
     profile.manifest = Some(path);
     profile.managed.extend(newly);
     state.save()?;
+
+    if let Some((r, other_profiles)) = prune {
+        if !r.remove.is_empty() && !pacman::remove(&r.remove, yes)? {
+            return crate::fail!(
+                "pacman did not complete; kiln still records the packages {name} no longer lists"
+            );
+        }
+        let mut state = State::load()?;
+        let released: Vec<String> = [r.remove, r.gone, r.shared].concat();
+        state.release(name, &released, &other_profiles);
+        state.save()?;
+    }
     println!(
         "{}",
         ui::good(&format!("   profile {name} is active and satisfied"))
@@ -123,20 +187,14 @@ pub fn remove(arg: &str, purge: bool, dry_run: bool, yes: bool) -> Result<()> {
         return deactivate(&name, &BTreeMap::new());
     }
 
-    // Everything the other active profiles want right now. If one of their
-    // manifests can't be read we can't prove a package is unneeded: stop.
-    let mut other_wanted = HashSet::new();
-    let mut other_profiles = BTreeMap::new();
-    for (other, profile) in state.profiles.iter().filter(|(n, _)| **n != name) {
-        let m = profile.load_manifest(other).map_err(|e| {
-            crate::error::Error::Failed(format!(
-                "cannot read active profile {other:?}, so cannot tell what it needs: {e}"
-            ))
-        })?;
-        other_wanted.extend(m.packages.official.iter().cloned());
-        other_profiles.insert(other.clone(), m.packages.official);
-    }
-    let p = plan::remove_plan(&name, &state, &other_wanted, &pacman::installed()?);
+    let (other_wanted, other_profiles) = others(&state, &name)?;
+    let p = plan::remove_plan(
+        &name,
+        &mine.managed,
+        &state,
+        &other_wanted,
+        &pacman::installed()?,
+    );
 
     if !p.shared.is_empty() {
         println!(
@@ -164,6 +222,43 @@ pub fn remove(arg: &str, purge: bool, dry_run: bool, yes: bool) -> Result<()> {
         return crate::fail!("pacman did not complete; profile {name} is still active");
     }
     deactivate(&name, &other_profiles)
+}
+
+/// `kiln sync`: apply every active profile from its recorded manifest.
+pub fn sync(purge: bool, dry_run: bool, yes: bool) -> Result<()> {
+    let state = State::load()?;
+    if state.profiles.is_empty() {
+        println!("no active profiles (see `kiln profile list`)");
+        return Ok(());
+    }
+    for (name, ps) in &state.profiles {
+        ps.load_manifest(name)?; // refuses a file now naming another profile
+        let path = match &ps.manifest {
+            Some(path) => path.clone(),
+            None => manifest::resolve(name)?,
+        };
+        apply(&path.to_string_lossy(), purge, dry_run, yes)?;
+    }
+    Ok(())
+}
+
+/// Everything the other active profiles want right now, merged and per
+/// profile. If one of their manifests can't be read we can't prove a package
+/// is unneeded: stop.
+type Wanted = (HashSet<String>, BTreeMap<String, Vec<String>>);
+fn others(state: &State, name: &str) -> Result<Wanted> {
+    let mut other_wanted = HashSet::new();
+    let mut other_profiles = BTreeMap::new();
+    for (other, profile) in state.profiles.iter().filter(|(n, _)| *n != name) {
+        let m = profile.load_manifest(other).map_err(|e| {
+            crate::error::Error::Failed(format!(
+                "cannot read active profile {other:?}, so cannot tell what it needs: {e}"
+            ))
+        })?;
+        other_wanted.extend(m.packages.official.iter().cloned());
+        other_profiles.insert(other.clone(), m.packages.official);
+    }
+    Ok((other_wanted, other_profiles))
 }
 
 fn deactivate(name: &str, other_wanted: &BTreeMap<String, Vec<String>>) -> Result<()> {

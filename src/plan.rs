@@ -45,29 +45,29 @@ pub struct RemovePlan {
     pub gone: Vec<String>,
 }
 
-/// Which packages `kiln remove <profile> --purge` may uninstall.
+/// Which `candidates` (packages Kiln recorded for `profile`) may be uninstalled:
+/// all of them for `kiln remove --purge`, the ones dropped from the manifest
+/// for `kiln apply --purge`.
 ///
 /// Only packages Kiln recorded as installed for this profile are candidates.
 /// A candidate is kept if another active profile either manages it or lists
 /// it in its manifest (`other_wanted`). Manually installed packages are never
 /// recorded, so they are never candidates.
-pub fn remove_plan(
+pub fn remove_plan<'a>(
     profile: &str,
+    candidates: impl IntoIterator<Item = &'a String>,
     state: &State,
     other_wanted: &HashSet<String>,
     installed: &HashSet<String>,
 ) -> RemovePlan {
     let mut plan = RemovePlan::default();
-    let Some(mine) = state.profiles.get(profile) else {
-        return plan;
-    };
     let other_managed: HashSet<&String> = state
         .profiles
         .iter()
         .filter(|(name, _)| name.as_str() != profile)
         .flat_map(|(_, p)| &p.managed)
         .collect();
-    for pkg in &mine.managed {
+    for pkg in candidates {
         if other_managed.contains(pkg) || other_wanted.contains(pkg) {
             plan.shared.push(pkg.clone());
         } else if installed.contains(pkg) {
@@ -121,7 +121,13 @@ mod tests {
     fn remove_keeps_packages_other_profiles_need() {
         let s = state(&[("a", &["x", "y", "z", "w"]), ("b", &["y"])]);
         // "z" is listed in b's manifest even though Kiln installed it for a.
-        let plan = remove_plan("a", &s, &set(&["z"]), &set(&["x", "y", "z"]));
+        let plan = remove_plan(
+            "a",
+            &s.profiles["a"].managed,
+            &s,
+            &set(&["z"]),
+            &set(&["x", "y", "z"]),
+        );
         assert_eq!(plan.remove, v(&["x"]));
         assert_eq!(plan.shared, v(&["y", "z"]));
         assert_eq!(plan.gone, v(&["w"]));
@@ -131,14 +137,20 @@ mod tests {
     fn remove_never_touches_unmanaged_packages() {
         // "vim" is installed but Kiln did not install it: never a candidate.
         let s = state(&[("a", &["x"])]);
-        let plan = remove_plan("a", &s, &set(&[]), &set(&["x", "vim"]));
+        let plan = remove_plan(
+            "a",
+            &s.profiles["a"].managed,
+            &s,
+            &set(&[]),
+            &set(&["x", "vim"]),
+        );
         assert_eq!(plan.remove, v(&["x"]));
     }
 
     #[test]
-    fn remove_of_inactive_profile_is_empty() {
+    fn remove_of_no_candidates_is_empty() {
         assert_eq!(
-            remove_plan("a", &State::default(), &set(&[]), &set(&[])),
+            remove_plan("a", &[], &State::default(), &set(&[]), &set(&[])),
             RemovePlan::default()
         );
     }
